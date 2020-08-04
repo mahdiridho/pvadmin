@@ -1,0 +1,355 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+
+<dom-module id="calendar-page">
+  <template>
+    <style>
+
+      :host {
+        display: block;
+        margin-top: 10px;
+      }
+      .horizontal {
+        @apply --layout-horizontal;
+        @apply --layout-center;
+        @apply --layout-wrap;
+        margin-left: 10px;
+      }
+      paper-dropdown-menu {
+        margin-right: 10px;
+      }
+      paper-item {
+        --paper-item-min-height: 20px;
+        height: 20px;
+        --paper-item: {
+          padding: 4px 10px;
+        };
+      }
+      paper-button {
+        color: #fff;
+        padding: 0;
+        max-height: 40px;
+        height: 40px;
+      }
+      paper-button.blue {
+        background-color: var(--paper-blue-500);
+      }
+      paper-button.grey {
+        background-color: var(--paper-grey-900);
+      }
+      paper-button.grey2 {
+        color: var(--paper-grey-900);
+        border: var(--paper-grey-900) solid 1px;
+      }
+      #day {
+        margin: 10px;
+        @apply --layout-horizontal;
+        @apply --layout-wrap;
+        width: 400px;
+      }
+      #day[hidden] {
+        display: none;
+      }
+      .day {
+        cursor: pointer;
+        border: 1px solid #000;
+        width: 50px;
+        height: 50px;
+        padding: 1px;
+        margin-top: 2px;
+        margin-right: 2px;
+        @apply --layout-vertical;
+        @apply --layout-center-justified;
+        @apply --layout-center;
+      }
+      .day.title {
+        background-color: var(--paper-blue-300);
+      }
+      .day.avail {
+        background-color: var(--paper-green-300);
+      }
+      .day.book {
+        background-color: var(--paper-red-300);
+      }
+      .day.null {
+        background-color: var(--paper-grey-100);
+      }
+      .price {
+        font-size: 12px;
+      }
+      .setting {
+        @apply --layout-vertical;
+        width: 150px;
+        margin: 30px 10px;
+        font-size: 12px;
+      }
+      .setting[hidden] {
+        display: none;
+      }
+      paper-spinner-lite {
+        position: fixed;
+        top: calc(50% - 14px);
+        left: calc(50% - 14px);
+      }
+      @media (max-width: 767px) {
+        #day {
+          width: 380px;
+        }
+        .day {
+          width: 45px;
+          height: 45px;
+        }
+        .num {
+          font-size: 12px;
+        }
+        .price {
+          font-size: 12px;
+        }
+      }
+    </style>
+    <div class="horizontal">
+      <paper-dropdown-menu id="month" label="Month" no-animations>
+        <paper-listbox id="month" slot="dropdown-content" attr-for-selected="name" selected="January">
+          <template is="dom-repeat" items="{{month}}" as="m">
+            <paper-item name="{{m}}">{{m}}</paper-item>
+          </template>
+        </paper-listbox>
+      </paper-dropdown-menu>
+      <paper-dropdown-menu id="year" label="Year" no-animations>
+        <paper-listbox id="year" slot="dropdown-content" attr-for-selected="name" selected="2018">
+          <template is="dom-repeat" items="{{year}}" as="y">
+            <paper-item name="{{y}}">{{y}}</paper-item>
+          </template>
+        </paper-listbox>
+      </paper-dropdown-menu>
+      <paper-button class='blue' on-tap="_setDate" disabled={{loading}}>Go</paper-button>
+      <paper-button class='blue' on-tap="pullData" disabled={{loading}}>Reload</paper-button>
+    </div>
+    <div class="horizontal">
+      <div id="day" hidden="{{dateBox}}">
+        <template is="dom-repeat" items="{{day}}">
+          <div class="day title">
+            <span>{{item}}</span>
+          </div>
+        </template>
+        <template is="dom-repeat" items="{{days}}" as="d">
+          <template is="dom-if" if="{{_isNull(d.roomState)}}">
+            <div class="day null">
+              <span>&nbsp;</span>
+              <span>&nbsp;</span>
+            </div>
+          </template>
+          <template is="dom-if" if="{{_isAvail(d.roomState)}}">
+            <div class="day avail" on-tap="setRoom">
+              <span class="num">{{d.num}}</span>
+              <span class="price">${{d.price}}</span>
+            </div>
+          </template>
+          <template is="dom-if" if="{{_isBook(d.roomState)}}">
+            <div class="day book" on-tap="setRoom">
+              <span class="num">{{d.num}}</span>
+              <span class="price">${{d.price}}</span>
+            </div>
+          </template>
+        </template>
+      </div>
+      <div class="setting" hidden="{{setting}}">
+        <span>{{roomDate}}</span>
+        <paper-input id="price" label="Price (USD)" type="number" step=10 min=10 value={{price}}></paper-input>
+        <div>
+          <label id="state">Room State</label>
+          <paper-radio-group selected="{{state}}" aria-labelledby="state">
+            <paper-radio-button name=0>Available</paper-radio-button>
+            <paper-radio-button name=1>Booked</paper-radio-button>
+          </paper-radio-group>
+        </div>
+        <paper-button class="grey" on-tap="setItem">Set</paper-button>
+        <paper-button class="grey2" on-tap="cancel">Cancel</paper-button>
+      </div>
+    </div>
+    <paper-spinner-lite active="{{loading}}"></paper-spinner-lite>
+  </template>
+
+  <script>
+    class CalendarPage extends Polymer.Element {
+      static get is() { return 'calendar-page'; }
+
+      static get properties() { return {
+        loading: {
+          type: Boolean,
+          value: false
+        },
+        month: {
+          type: Array,
+          value: [
+            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+          ]
+        },
+        year: {
+          type: Array,
+          value: ["2018", "2019", "2020", "2021"]
+        },
+        day: {
+          type: Array,
+          value: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        },
+        allDays: {
+          type: Array,
+          value: []
+        },
+        days: {
+          type: Array,
+          value: []
+        },
+        price: {
+          type: Number,
+          value: 10
+        },
+        state: {
+          type: Number,
+          value: 0
+        },
+        setting: {
+          type: Boolean,
+          value: true
+        },
+        dateBox: {
+          type: Boolean,
+          value: true
+        }
+      }}
+
+      connectedCallback(){
+        super.connectedCallback();
+        this.pullData();
+      }
+
+      pullData(e){
+        if (e)
+          var reload = e.target.textContent;
+        this.loading = true;
+        Polymer.db.collection("calendar").get().then((querySnapshot) => {
+          if (querySnapshot.docs.length>0) {
+            let days = [], index=0;
+            querySnapshot.forEach((doc) => {
+              days[''+doc.id] = JSON.parse(doc.data().data);index++;
+              if(index == querySnapshot.docs.length) {
+                this.loading = false;
+                this.set('allDays', days);
+                if(reload == "Reload")
+                  this._setDate();
+              }
+            })
+          } else {
+            let docCalendar = [], days = [];
+            for (let y=0; y<this.year.length; y++) {
+              docCalendar[y] = [];
+              for (let m=1; m<=12; m++) {
+                let dayCount = new Date(Number(this.year[y]), m, 0).getDate();
+                let month = (m < 10)?'0'+m:m;
+                let dayArr = [], a=0, day='';
+                for (let d=1; d<=dayCount; d++) {
+                  a = d;
+                  if (d<10)
+                    a = '0'+d;
+
+                  a=new Date(this.year[y] +'-'+ month +'-'+ a)
+                  day = this.day[a.getDay()];
+                  dayArr.push({
+                    num:d,
+                    str:day,
+                    roomState:0,
+                    price:0
+                  })
+                }
+                docCalendar[y].push(dayArr)
+                days[''+this.year[y]] = dayArr;
+              }
+            }
+            this.set('allDays', days);
+
+            console.log("No such document!", docCalendar[0]);
+/*            Polymer.db.collection("calendar").doc("2018").set({data:JSON.stringify(docCalendar[0])}).then(()=>{
+              Polymer.db.collection("calendar").doc("2019").set({data:JSON.stringify(docCalendar[1])}).then(()=>{
+                Polymer.db.collection("calendar").doc("2020").set({data:JSON.stringify(docCalendar[2])}).then(()=>{
+                  Polymer.db.collection("calendar").doc("2021").set({data:JSON.stringify(docCalendar[3])}).then(()=>{
+                    console.log("Document successfully written!");
+                    this.loading = false;
+                  })
+                })
+              })
+            })*/
+          }
+        }).catch(function(error) {
+            console.log("Error getting document:", error);
+        })
+      }
+
+      _setDate(){
+        this.set('days', []);
+        let days = this.allDays[this.$.year.selectedItem.name][this.month.indexOf(this.$.month.selectedItem.name)].slice(0);
+        let startNull = this.day.indexOf(this.allDays[this.$.year.selectedItem.name][this.month.indexOf(this.$.month.selectedItem.name)][0].str);
+        let endNull = this.day.indexOf(this.allDays[this.$.year.selectedItem.name][this.month.indexOf(this.$.month.selectedItem.name)][this.allDays[this.$.year.selectedItem.name][this.month.indexOf(this.$.month.selectedItem.name)].length-1].str);
+        for (let s=0; s<startNull; s++)
+          days.unshift({num:'&nbsp;',str:'&nbsp;',roomState:-1});
+        for (let e=endNull; e<6; e++)
+          days.push({num:'&nbsp;',str:'&nbsp;',roomState:-1});
+        console.log(this.allDays[this.$.year.selectedItem.name][this.month.indexOf(this.$.month.selectedItem.name)])
+        this.dateBox = false;
+        this.set('days', days)
+      }
+
+      _isAvail(room) {
+        if (room == 0)
+          return true;
+      }
+
+      _isBook(room) {
+        if (room == 1)
+          return true;
+      }
+
+      _isNull(room) {
+        if (room == -1)
+          return true;
+      }
+
+      cancel() {
+        this.setting = true;
+        this.loading = false;
+      }
+
+      _formatPrice(price) {
+        return price/1000;
+      }
+
+      setRoom(e) {
+        this.item = e.model.index
+        this.roomDate = this.$.month.selectedItem.name +' '+ this.days[this.item].num +', '+ this.$.year.selectedItem.name;
+        this.price = (this.days[this.item].price > 10)?this.days[this.item].price:10;
+        this.state = this.days[this.item].roomState;
+        this.setting = false;
+      }
+
+      setItem() {
+        this.loading = true;
+        this.set('allDays.'+this.$.year.selectedItem.name+'.'+this.month.indexOf(this.$.month.selectedItem.name)+'.'+(this.days[this.item].num-1)+'.roomState', this.state);
+        this.set('allDays.'+this.$.year.selectedItem.name+'.'+this.month.indexOf(this.$.month.selectedItem.name)+'.'+(this.days[this.item].num-1)+'.price', this.price);
+        this.days[this.item].roomState = this.state;
+        this.days[this.item].price = this.price;
+        Polymer.db.collection("calendar").doc(this.$.year.selectedItem.name).set({
+          data: JSON.stringify(this.allDays[this.$.year.selectedItem.name])
+        }).then(()=>{
+          this.price = 10;
+          this.state = 0;
+          this.notifyPath('days.'+this.item+'.roomState');
+          this.notifyPath('days.'+this.item+'.price');
+          this.cancel();
+        }).catch(function(error) {
+          console.log("Error setting document:", error);
+        })
+      }
+    }
+
+    window.customElements.define(CalendarPage.is, CalendarPage);
+  </script>
+</dom-module>
