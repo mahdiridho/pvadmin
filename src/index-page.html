@@ -1,0 +1,58 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+<link rel="import" href="../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../bower_components/app-route/app-location.html">
+<link rel="import" href="../bower_components/paper-spinner/paper-spinner-lite.html">
+<link rel="import" href="../bower_components/iron-media-query/iron-media-query.html">
+<link rel="import" href="home-page.html">
+
+    <dom-module id="index-page">
+      <template>
+        <style>
+          paper-spinner-lite {
+            position: fixed;
+            top: calc(50% - 14px);
+            left: calc(50% - 14px);
+          }
+        </style>
+        <iron-location path="{{path}}"></iron-location>
+        <home-page id="home"></home-page>
+        <paper-spinner-lite active="{{loading}}"></paper-spinner-lite>
+      </template>
+      <script>
+        class IndexPage extends Polymer.Element {
+          static get is() { return 'index-page'; }
+
+          // Declare properties for the element's public API
+          static get properties() {
+            return {
+              loading: {
+                type: Boolean,
+                value: true
+              }              
+            }
+          }
+
+          connectedCallback(){
+            super.connectedCallback();
+            if (window.sessionStorage.getItem('profile'))
+              this.firebaseSet();
+            else {
+              let hitLogin = document.querySelector("#userLogin");
+              hitLogin.open();
+              window.addEventListener('authenticated', this.firebaseSet.bind(this));
+            }
+          }
+
+          firebaseSet() {
+            this.loading = false;
+            let hitLogin = document.querySelector("#userLogin");
+            hitLogin.close();
+            let defaultRoute = "calendar";
+            if(this.path != "/")
+              defaultRoute = this.path.split("/")[1];
+            this.$.home._routePageChanged(defaultRoute);
+          }
+        }
+        customElements.define(IndexPage.is, IndexPage);
+      </script>
+    </dom-module>

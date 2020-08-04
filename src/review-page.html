@@ -1,0 +1,236 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+
+<dom-module id="review-page">
+  <template>
+    <style>
+      :host {
+        display: block;
+        margin: 10px;
+      }
+      .horizontal {
+        @apply --layout-horizontal;
+        @apply --layout-wrap;
+      }
+      .column {
+        @apply --layout-vertical;
+      }
+      paper-input {
+        margin-right: 10px;
+      }
+      paper-item {
+        font-size: 10px;
+        --paper-item-min-height: 20px;
+        height: 20px;
+        --paper-item: {
+          padding: 4px 10px;
+        };
+      }
+      paper-button {
+        border: 1px solid #666;
+      }
+      paper-fab {
+        position: fixed;
+        bottom: 10px; right: 20px;
+        z-index: 999;
+        cursor: pointer;
+        background-color: var(--paper-blue-900);
+      }
+      paper-spinner-lite {
+        position: fixed;
+        top: calc(50% - 14px);
+        left: calc(50% - 14px);
+      }
+      iron-icon {
+        width: 15px;height: 15px;
+      }
+      .review {
+        height: 300px;
+        overflow-y: scroll;
+        background: white; margin-top: 20px; padding: 10px;
+      }
+    </style>
+    <div>
+      <div class="horizontal">
+        <paper-input type="text" id="accountName" placeholder="Name" autofocus required></paper-input>
+        <paper-input type="text" id="bookCode" placeholder="Book Code" required></paper-input>
+        <paper-dropdown-menu label="Country" no-animations>
+          <paper-listbox id="country" slot="dropdown-content" attr-for-selected="name" selected="Afghanistan">
+            <template is="dom-repeat" items="{{countries}}" as="c">
+              <paper-item name="{{c.name}}">{{c.name}}</paper-item>
+            </template>
+          </paper-listbox>
+        </paper-dropdown-menu>
+      </div>
+      <span style="font-size: 12px; color: #888;">Checkin / Checkout:</span>
+      <div class="horizontal">
+        <paper-input type="date" id="checkin" placeholder="Checkin" on-change="_checkDate" required></paper-input>
+        <paper-input type="date" id="checkout" placeholder="Checkout" on-change="_checkDate" required></paper-input>
+      </div>
+      <paper-textarea id="comment" name="comment" required placeholder="Place your comments, message here..."></paper-textarea>
+      <span style="font-size: 12px; color: #888;">Level of satisfaction:</span>
+      <div class="horizontal">
+        <div>
+          <paper-icon-button icon="my-icons:star-border" on-tap="setStar" id="1"></paper-icon-button>
+          <paper-icon-button icon="my-icons:star-border" on-tap="setStar" id="2"></paper-icon-button>
+          <paper-icon-button icon="my-icons:star-border" on-tap="setStar" id="3"></paper-icon-button>
+          <paper-icon-button icon="my-icons:star-border" on-tap="setStar" id="4"></paper-icon-button>
+          <paper-icon-button icon="my-icons:star-border" on-tap="setStar" id="5"></paper-icon-button>
+        </div>
+        <paper-button on-tap="_submit">Submit</paper-button>
+      </div>
+    </div>
+
+    <div class="review">
+      <template is="dom-repeat" items="{{testimonis}}" as="e">
+        <p style="font-size: 12px; color: #666"><b>{{e.name}} {{e.country}} ({{e.checkin}} - {{e.checkout}})</b><br>
+          "{{e.comment}}"
+          <iron-icon icon="my-icons:{{_level(e.satisfaction,1)}}"></iron-icon>
+          <iron-icon icon="my-icons:{{_level(e.satisfaction,2)}}"></iron-icon>
+          <iron-icon icon="my-icons:{{_level(e.satisfaction,3)}}"></iron-icon>
+          <iron-icon icon="my-icons:{{_level(e.satisfaction,4)}}"></iron-icon>
+          <iron-icon icon="my-icons:{{_level(e.satisfaction,5)}}"></iron-icon>
+          <span style="float: right; text-decoration: underline; cursor: pointer;" on-click="_delete">delete</span>
+        </p>
+        <hr>
+      </template>
+    </div>
+
+    <!-- Show spinner when waiting for the server to repond -->
+    <paper-fab mini icon="my-icons:refresh" title="Reload" on-tap="pullData"></paper-fab>
+    <paper-spinner-lite active="{{loading}}"></paper-spinner-lite>
+  </template>
+
+  <script>
+    class ReviewPage extends Polymer.Element {
+      static get is() { return 'review-page'; }
+
+      static get properties() { return {
+        countries: {
+          type: Array,
+          value: countries
+        },
+        loading: {
+          type: Boolean,
+          value: false
+        },
+        testimonis: {
+          type: Array,
+          value: []
+        },
+        satisfaction: {
+          type: String,
+          value: "0"
+        }
+      }}
+
+      connectedCallback(){
+        super.connectedCallback();
+        this.pullData();
+      }
+
+      _delete(e){
+        this.loading = true;
+        Polymer.db.collection("testimoni").doc(this.testimonis[e.model.index].id).delete().then(()=>{
+          console.log("Document successfully deleted!");
+          this.pullData();
+        }).catch(function(error) {
+          console.error("Error removing document: ", error);
+        });
+      }
+
+      _level(s,n) {
+        if (n<=Number(s))
+          return "star";
+        else
+          return "star-border";
+      }
+
+      setStar(e) {
+        console.log(e.target.getAttribute('id'))
+        this.satisfaction = e.target.getAttribute('id');
+        for (let s=1; s<=5; s++) {
+          this.$[s].setAttribute('icon','my-icons:star-border')
+          if (s<=Number(e.target.getAttribute('id')))
+            this.$[s].setAttribute('icon','my-icons:star')
+        }
+      }
+      resetStar() {
+        this.satisfaction = "0";
+        for (let s=1; s<=5; s++)
+          this.$[s].setAttribute('icon','my-icons:star-border')
+      }
+
+      _checkDate(){
+        if (this.$.checkin.value && this.$.checkout.value)
+          if (new Date(this.$.checkout.value).getTime() <= new Date(this.$.checkin.value).getTime())
+            this.$.checkout.value = null;
+      }
+
+      _submit(e) {
+        if (isNaN(new Date(this.$.checkin.value).getTime()) || isNaN(new Date(this.$.checkout.value).getTime()))
+          return;
+        if (this.$.accountName!='' && this.$.bookCode!='' && this.$.comment!='') {
+          this.loading = true;
+          var today = new Date();
+          var dd = today.getDate();
+          var mm = today.getMonth()+1;
+          var hh = today.getHours();
+          var ii = today.getMinutes();
+
+          var yyyy = today.getFullYear();
+          if(dd<10){
+              dd='0'+dd;
+          } 
+          if(mm<10){
+              mm='0'+mm;
+          }
+          var today = yyyy +'-'+ mm +'-'+ dd +' '+ hh +':'+ ii;
+          Polymer.db.collection("testimoni").add({data:JSON.stringify({
+            name: this.$.accountName.value,
+            code: this.$.bookCode.value,
+            country: this.$.country.selectedItem.name,
+            satisfaction: this.satisfaction,
+            comment: this.$.comment.value,
+            checkin: this.$.checkin.value,
+            checkout: this.$.checkout.value
+          })}).then(()=>{
+            this.$.accountName.value = '';
+            this.$.bookCode.value = '';
+            this.$.country.selected = 'Afghanistan';
+            this.$.comment.value = '';
+            this.$.checkin.value = null;
+            this.$.checkout.value = null;
+            this.resetStar();
+            console.log("Document successfully written!");
+            this.pullData();
+          }).catch(function(error) {
+              console.log("Error getting document:", error);
+          })
+        }
+      }
+
+      pullData(){
+        this.loading = true;
+        this.testimonis = [];
+        Polymer.db.collection("testimoni").orderBy('data', 'desc').get().then((querySnapshot) => {
+          if (querySnapshot.docs.length>0) {
+            let items = [], index=0;
+            querySnapshot.forEach((doc) => {
+              items[index] = JSON.parse(doc.data().data);
+              items[index].id = doc.id;index++;
+              if(index == querySnapshot.docs.length) {
+                this.set('testimonis', items);
+                this.loading = false;
+              }
+            })
+          } else
+            this.loading = false;
+        }).catch(function(error) {
+            console.log("Error getting document:", error);
+        })
+      }
+    }
+
+    window.customElements.define(ReviewPage.is, ReviewPage);
+  </script>
+</dom-module>

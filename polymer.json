@@ -1,0 +1,33 @@
+{
+  "entrypoint": "index.html",
+  "shell": "src/index-page.html",
+  "fragments": [
+    "src/home-page.html"
+  ],
+  "sources": [
+    "src/**/*",
+    "images/**/*"
+  ],
+  "extraDependencies": [
+    "manifest.json",
+    "src/app.js",
+    "bower_components/webcomponentsjs/*.js",
+    "bower_components/firebaseui/dist/**/*"
+  ],
+  "lint": {
+    "rules": ["polymer-2"]
+  },
+  "builds": [
+    {
+      "name": "es5-bundled",
+      "js": {"minify": true, "compile": true},
+      "css": {"minify": true},
+      "html": {"minify": true},
+      "bundle": true,
+      "preset": "es5-bundled",
+      "addServiceWorker": true,
+      "addPushManifest": true,
+      "insertPrefetchLinks": true
+    }
+  ]
+}

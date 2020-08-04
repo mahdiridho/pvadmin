@@ -1,0 +1,90 @@
+<link rel="import" href="../bower_components/polymer/polymer-element.html">
+
+<dom-module id="question-page">
+  <template>
+    <style>
+      :host {
+        display: block;
+        margin: 10px;
+      }
+      .horizontal {
+        @apply --layout-horizontal;
+        @apply --layout-wrap;
+      }
+      paper-card {
+        margin: auto 5px 10px;
+      }
+      paper-fab {
+        position: fixed;
+        bottom: 10px; right: 20px;
+        z-index: 999;
+        cursor: pointer;
+        background-color: var(--paper-blue-900);
+      }
+      paper-spinner-lite {
+        position: fixed;
+        top: calc(50% - 14px);
+        left: calc(50% - 14px);
+      }
+    </style>
+    <div class="horizontal">
+      <template is="dom-repeat" items="{{questions}}" as="e">
+        <paper-card>
+          <div class="card-content">
+            <li>Name : {{e.name}}</li>
+            <li>Email : {{e.email}}</li>
+            <li>Phone : {{e.phone}}</li>
+            <li>Country : {{e.country}}</li>
+            <li>Question : {{e.question}}</li>
+            <li>Submit Form : {{e.createDate}}</li>
+          </div>
+        </paper-card>
+      </template>
+    </div>
+    <paper-fab mini icon="my-icons:refresh" title="Reload" on-tap="pullData"></paper-fab>
+    <paper-spinner-lite active="{{loading}}"></paper-spinner-lite>
+  </template>
+
+  <script>
+    class QuestionPage extends Polymer.Element {
+      static get is() { return 'question-page'; }
+
+      static get properties() { return {
+        loading: {
+          type: Boolean,
+          value: false
+        },
+        questions: {
+          type: Array,
+          value: []
+        }
+      }}
+
+      connectedCallback(){
+        super.connectedCallback();
+        this.pullData();
+      }
+
+      pullData(){
+        this.loading = true;
+        Polymer.db.collection("question").get().then((querySnapshot) => {
+          if (querySnapshot.docs.length>0) {
+            let items = [], index=0;
+            querySnapshot.forEach((doc) => {
+              items[index] = JSON.parse(doc.data().data);index++;
+              if(index == querySnapshot.docs.length) {
+                this.set('questions', items);
+                this.loading = false;
+              }
+            })
+          } else
+            this.loading = false;
+        }).catch(function(error) {
+            console.log("Error getting document:", error);
+        })
+      }
+    }
+
+    window.customElements.define(QuestionPage.is, QuestionPage);
+  </script>
+</dom-module>
